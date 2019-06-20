@@ -30,7 +30,7 @@ struct static_binary binaries[] = {
 struct process *create_process(struct process *p, uint32_t binary)
 {
 	static uint32_t pid = 1;
-	uint32_t size, phys, i, *dst, *src;
+	uint32_t size, phys, i, *dst, *src, virt;
 	/*
 	 * Determine the size of the "process image" rounded to a whole page
 	 */
@@ -45,26 +45,46 @@ struct process *create_process(struct process *p, uint32_t binary)
 	size = ((size >> PAGE_BITS) + 1) << PAGE_BITS;
 
 	/*
-	 * Allocate physical memory for the process, and map it to the "process
-	 * segment" that we've defined, 0x20000000.
+	 * Create an allocator for the user virtual memory space
+	 */
+	p->vmem_allocator = kmem_get_pages(0x1000, 0);
+	init_page_allocator(p->vmem_allocator, 0x40000000, 0xFFFFFFFF);
+
+	/*
+	 * Allocate the first-level table and a shadow table (for virtual
+	 * addresses of second-level tables).
+	 */
+	p->first = kmem_get_pages(0x8000, 14);
+	p->shadow = (void*)p->first + 0x4000;
+	p->ttbr1 = kmem_lookup_phys(p->first);
+	for (i = 0; i < 0x2000; i++)  /* one day I'll implement memset() */
+		p->first[i] = 0;
+
+	/*
+	 * Allocate physical memory for the process image, and map it
+	 * temporarily into kernel memory.
 	 */
 	phys = alloc_pages(phys_allocator, size, 0);
-	mark_alloc(kern_virt_allocator, 0x20000000, size);
-	kmem_map_pages(0x20000000, phys, size, PRW_URW);
+	virt = alloc_pages(kern_virt_allocator, size, 0);
+	kmem_map_pages(virt, phys, size, PRW_URW);
 
 	/*
 	 * Copy the "process image" over.
 	 */
-	dst = (uint32_t*) 0x20000000;
+	dst = (uint32_t*) virt;
 	src = (uint32_t*) binaries[binary].start;
 	for (i = 0; i < size>>2; i++)
 		dst[i] = src[i];
+
+	kmem_unmap_pages(virt, size);
+	mark_alloc(p->vmem_allocator, 0x40000000, size);
+	umem_map_pages(p, 0x40000000, phys, size, PRW_URW);
 
 	/*
 	 * Set up some process variables
 	 */
 	p->context[PROC_CTX_SPSR] = 0x10;      /* enter user mode */
-	p->context[PROC_CTX_RET] = 0x20000000; /* jump to process img */
+	p->context[PROC_CTX_RET] = 0x40000000; /* jump to process img */
 	p->id = pid++;
 	p->size = size;
 	p->phys = phys;
@@ -82,6 +102,11 @@ void destroy_process(struct process *proc)
 
 void start_process(struct process *p)
 {
+	/* Set TTBR1 to user tables! */
+	uint32_t cpreg;
+	cpreg = p->ttbr1;
+	set_cpreg(cpreg, c2, 0, c0, 1);
+
 	current = p;
 	printf("[kernel]\t\tstart process %u\n", p->id);
 	start_process_asm(
@@ -92,7 +117,7 @@ void start_process(struct process *p)
 void context_switch(struct process *new_process)
 {
 	uint32_t *context = (uint32_t *)&stack_end - nelem(current->context);
-	uint32_t i;
+	uint32_t i, cpreg;
 
 	printf("[kernel]\t\tswap current process %u for new process %u\n",
 			current ? current->id : 0, new_process->id);
@@ -110,6 +135,8 @@ void context_switch(struct process *new_process)
 	}
 
 	current = new_process;
+	cpreg = current->ttbr1;
+	set_cpreg(cpreg, c2, 0, c0, 1);
 }
 
 /**

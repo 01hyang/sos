@@ -30,6 +30,7 @@ kernel.elf: kernel/uart.o
 kernel.elf: kernel/startup.o
 kernel.elf: kernel/main.o
 kernel.elf: kernel/kmem.o
+kernel.elf: kernel/umem.o
 kernel.elf: kernel/sysinfo.o
 kernel.elf: kernel/entry.o
 kernel.elf: kernel/c_entry.o

@@ -177,10 +177,22 @@ struct process {
 	/** Global process list entry. */
 	struct list_head list;
 
+	/** Basically a pid */
 	uint32_t id;
 
+	/** Size of the process image file. */
 	uint32_t size;
+
+	/** Physical address of process image. */
 	uint32_t phys;
+
+	/** Allocator for the process address space. */
+	void *vmem_allocator;
+
+	/** First-level page table and shadow page table. */
+	uint32_t ttbr1;
+	uint32_t *first;
+	uint32_t **shadow;
 };
 
 /**
@@ -222,3 +234,5 @@ extern uint32_t process_salutations_start[];
 extern uint32_t process_salutations_end[];
 extern uint32_t process_hello_start[];
 extern uint32_t process_hello_end[];
+
+void umem_map_pages(struct process *p, uint32_t virt, uint32_t phys, uint32_t len, uint32_t attrs);
