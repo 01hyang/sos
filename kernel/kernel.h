@@ -95,6 +95,8 @@ extern void *kern_virt_allocator;
 
 #define SLD_MASK     0x03
 
+#define SLD_NG (1 << 11)
+
 /* access control for second level */
 #define NOT_GLOBAL   (0x1 << 11)
 #define PRW_UNA      (SLD__AP0)            /* AP=0b001 */

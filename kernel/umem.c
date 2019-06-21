@@ -21,7 +21,7 @@ void umem_map_page(struct process *p, uint32_t virt, uint32_t phys, uint32_t att
 	}
 	second = p->shadow[first_idx];
 
-	second[second_idx] = phys & 0xFFFFF000 | attrs | SLD_SMALL;
+	second[second_idx] = phys & 0xFFFFF000 | attrs | SLD_SMALL | SLD_NG;
 }
 
 void umem_map_pages(struct process *p, uint32_t virt, uint32_t phys, uint32_t len, uint32_t attrs)

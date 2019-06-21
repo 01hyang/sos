@@ -4,7 +4,7 @@
 #include "kernel.h"
 
 struct list_head process_list;
-struct process *current;
+struct process *current = NULL;
 
 #define stack_size 4096
 
@@ -100,15 +100,18 @@ void destroy_process(struct process *proc)
 	kmem_free_pages((void*)0x20000000, proc->size);
 }
 
+/* should be called only once */
 void start_process(struct process *p)
 {
+
+	/* Set the current ASID */
+	set_cpreg(p->id, c13, 0, c0, 1);
+
 	/* Set TTBR1 to user tables! */
-	uint32_t cpreg;
-	cpreg = p->ttbr1;
-	set_cpreg(cpreg, c2, 0, c0, 1);
+	set_cpreg(p->ttbr1, c2, 0, c0, 1);
 
 	current = p;
-	printf("[kernel]\t\tstart process %u\n", p->id);
+	printf("[kernel]\t\tstart process %u (ttbr1=0x%x)\n", p->id, p->ttbr1);
 	start_process_asm(
 		(void*)p->context[PROC_CTX_RET]
 	);
@@ -117,10 +120,10 @@ void start_process(struct process *p)
 void context_switch(struct process *new_process)
 {
 	uint32_t *context = (uint32_t *)&stack_end - nelem(current->context);
-	uint32_t i, cpreg;
+	uint32_t i;
 
-	printf("[kernel]\t\tswap current process %u for new process %u\n",
-			current ? current->id : 0, new_process->id);
+	printf("[kernel]\t\tswap current process %u for new process %u (ttbr=0x%x)\n",
+			current ? current->id : 0, new_process->id, new_process->ttbr1);
 	if (new_process == current)
 		return;
 
@@ -134,9 +137,15 @@ void context_switch(struct process *new_process)
 		context[i] = new_process->context[i];
 	}
 
-	current = new_process;
-	cpreg = current->ttbr1;
-	set_cpreg(cpreg, c2, 0, c0, 1);
+	/* Set the current ASID */
+	set_cpreg(new_process->id, c13, 0, c0, 1);
+
+	/* Set ttbr */
+	set_cpreg(new_process->ttbr1, c2, 0, c0, 1);
+
+	/* TODO: It is possible for ASIDs to overlap. Need to check for this and
+	 * invalidate caches. */
+
 }
 
 /**
