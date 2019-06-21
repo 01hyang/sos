@@ -12,6 +12,7 @@
 #include "alloc.h"
 
 #define nelem(x) (sizeof(x) / sizeof(x[0]))
+struct process;
 
 /*
  * Linker symbols for virtual memory addresses.
@@ -50,11 +51,6 @@ uint32_t printf(const char *format, ...);
 void kmem_init(uint32_t phys, bool verbose);
 
 /*
- * Look up the physical address corresponding to a kernel virtual address
- */
-uint32_t kmem_lookup_phys(void *virt_ptr);
-
-/*
  * Return pages of kernel memory, already mapped and everything!
  */
 void *kmem_get_pages(uint32_t bytes, uint32_t align);
@@ -65,11 +61,28 @@ void *kmem_get_pages(uint32_t bytes, uint32_t align);
 void kmem_free_pages(void *virt_ptr, uint32_t len);
 
 /*
- * Map physical memory into the kernel memory space.
+ * Look up the physical address corresponding to a virtual address
+ */
+uint32_t kmem_lookup_phys(void *virt_ptr);
+uint32_t umem_lookup_phys(struct process *p, void *virt_ptr);
+
+/*
+ * Map physical memory into the virtual memory space.
  */
 void kmem_map_pages(uint32_t virt, uint32_t phys, uint32_t len, uint32_t attrs);
+void umem_map_pages(struct process *p, uint32_t virt, uint32_t phys, uint32_t len, uint32_t attrs);
 
+/*
+ * Unmap memory
+ */
 void kmem_unmap_pages(uint32_t virt, uint32_t len);
+void umem_unmap_pages(struct process *p, uint32_t virt, uint32_t len);
+
+/*
+ * Print it!
+ */
+void kmem_print(uint32_t start, uint32_t stop);
+void umem_print(struct process *p, uint32_t start, uint32_t stop);
 
 extern void *phys_allocator;
 extern void *kern_virt_allocator;
@@ -237,4 +250,3 @@ extern uint32_t process_salutations_end[];
 extern uint32_t process_hello_start[];
 extern uint32_t process_hello_end[];
 
-void umem_map_pages(struct process *p, uint32_t virt, uint32_t phys, uint32_t len, uint32_t attrs);
